@@ -22,13 +22,20 @@ class MarkovChain:
         else:
             raise TypeError(f"Unknown value for arg 'trans_probs': {trans_probs} in call to MarkovChain.__init__()")
         
-        
+    
     def __getattr__(self, name):
         if(name=='nStates'):
             return len(self.states)
         
         raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
-            
+        
+    def __repr__(self):
+        return f"MarkovChain({self.nStates} states)"
+    
+    def __str__(self):
+        return f"<Markov Chain with {self.nStates} states>"
+    
+    
     # Get an iterator for this markov-chain
     # Feed all arguments into the con'r of the iterator-class
     def iterate(self, *args, **kwargs):
@@ -36,15 +43,10 @@ class MarkovChain:
     
     # Get the default iterator for this markov-chain
     def __iter__(self):
-        return MarkovChainIterator(self)
+        return MarkovChainIterator(self, skipInitial=True)
     
-    # make a copy of this MarkovChain object
-    def copy(self):
-        states = self.states.copy()
-        tprob = [self.tprob[st].copy() for st in range(self.nStates)]
-        return MarkovChain(states=states, trans_probs=tprob)
     
-    def equalize_tprobs(self):
+    def normalizeTransitionProbs(self):
         for st in range(self.nStates):
             T = sum(self.tprob[st])
             if(T==0):                   # when all probabilities are set to '0'
@@ -55,7 +57,7 @@ class MarkovChain:
     # calculate the next state of this markov chain, based on a random value 'x' in [0,1)        
     def next_state_from(self, st: int, x: float) -> int:
         # 'x' must be a value b/w 0 and 1, generated using rng.random()
-        tot = 0
+        tot = 0.
         for newSt in range(self.nStates):
             tot += self.tprob[st][newSt]
             if(tot > x):
@@ -65,6 +67,15 @@ class MarkovChain:
             raise RuntimeError(msg)
  
     
+    # make a copy of this MarkovChain object
+    def copy(self):
+        states = self.states.copy()
+        tprob = [self.tprob[st].copy() for st in range(self.nStates)]
+        return MarkovChain(states=states, trans_probs=tprob)
+    
+
+
+
 class MarkovChainIterator:
     # Iterate over a markov chain
     # Has a state and uses RNG's
@@ -72,18 +83,20 @@ class MarkovChainIterator:
     # Make this an infinite iterator by passing a -ve value as maxIter
     # See an example of usage in estimate_steady_dist() below
     
-    def __init__(self, mchain, start=None, rng=None, maxIter=100_000, skipInitial=True):
+    def __init__(self, mchain, start=None, rng=None, maxIter=1_000, skipInitial=False):
         # by giving rng=<some_fixed_int>, we can make this object a fixed (non-random) iterator
         
         self.chain = mchain
-        self.maxIter = maxIter
+        self.maxIter = int(maxIter)
         self.iterCnt = 0
         
         if((type(rng) is int) or (type(rng) is float)):     # preset seed-value
             self.rng = random.Random(rng)
         elif(rng is None):                                  # random seed-value
             self.rng = random.Random(None)  
-        
+        else:
+            raise ValueError(f"Argument '{rng}' is not a valid RNG or seed-value in {type(self).__name__} con'r")
+            
         if(start is None):
             self.state = self.rng.randint(0, self.chain.nStates-1)
         else:
@@ -93,7 +106,7 @@ class MarkovChainIterator:
             next(self, 0)
             
     def __next__(self):
-        if(self.iterCnt >= self.maxIter):
+        if(self.iterCnt == self.maxIter):
             raise StopIteration()
         self.state = self.chain.next_state_from(self.state, self.rng.random())
         self.iterCnt += 1
@@ -101,6 +114,14 @@ class MarkovChainIterator:
 
     def __iter__(self):
         return self
+    
+    def __repr__(self):
+        return f"MarkovChainIterator(state: {self.state})"
+    
+    def __str__(self):
+        return "MarkovChainIterator (in '{}' at step {}/{})"\
+                    .format(self.chain.states[self.state], self.iterCnt, (self.maxIter) if (self.maxIter>=0) else "inf")
+    
     
     
 
@@ -121,6 +142,6 @@ def estimate_steady_dist(mchain: MarkovChain, start=None, nIter=100_000, rng=Non
 
 # if __name__=='__main__':
 #     m = MarkovChain(5, 'equal')
-#     res = estimate_steady_dist(m, nIter=1_000_000, counts_to_prob=True)
-#     print(res)
+#     #res = estimate_steady_dist(m, nIter=1_000_000, counts_to_prob=True)
+#     #print(res)
     
