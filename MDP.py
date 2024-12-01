@@ -1,6 +1,8 @@
 
 import json
 
+from MarkovChain import MarkovChain
+
 class MDP:
     # A Markov Decision Process 
     # Every state-action pair has 
@@ -100,18 +102,36 @@ class MDP:
         
     def setTransitions(self, transitions : dict[  tuple[int,int],  list[tuple[float,int,float]]  ]) -> None:
         if(type(transitions) != dict):
-            raise ValueError(f"The given Transitions data: '{transitions}' \
-                                 is not a python dictionary")
+            raise ValueError(f"The given Transitions data: '{transitions}' " + \
+                                 "is not a python dictionary")
+        
+        # Collect all transitions.keys() that have invalid states for this MDP
+        invalid_states = [(st,a) for (st,a) in transitions.keys() if st not in range(self.nStates)]
+        if(len(invalid_states)):
+            raise ValueError(f"The given Transitions data: '{transitions}' " + \
+                                 f"contains some invalid states: '{invalid_states}'")
+            
+        # Collect all transitions.keys() that have invalid actions for that state
+        invalid_actions = [(st,a) for (st,a) in transitions.keys() if a not in self.possibleActions(st)]
+        if(len(invalid_actions)):
+            raise ValueError(f"The given Transitions data: '{transitions}' " + \
+                                 f"contains some invalid action: '{invalid_actions}'")
         
         # Collect all state-action pairs missing from the transitions' keys
-        missing = \
+        missing_sa_pairs = \
         [(st,a) for st in range(self.nStates) for a in self.possibleActions(st) if (st,a) not in transitions.keys()]
+        if(len(missing_sa_pairs)):
+            raise ValueError(f"The given Transitions data: '{transitions}' " + \
+                                 f"did not have some state-action pairs: '{missing_sa_pairs}'")
         
-        if(len(missing)):
-            raise ValueError(f"The given Transitions data: '{transitions}' \
-                                 did not have some state-action pairs: '{missing}'")
-        else:        
-            self.transitions = transitions
+        # Collect all transitions where the next-states might be invalid
+        ins = \
+        {  (st,a):[s  for p,s,r in transitions[st,a] if s not in range(self.nStates)]      for (st,a) in transitions.keys()}
+        invalid_next_states = {k:ins[k] for k in ins.keys() if len(ins[k])}
+        if(len(invalid_next_states)):
+            raise ValueError(f"The given Transitions data had some invalid next-states: '{invalid_next_states}'")
+
+        self.transitions = transitions
     
     # Makes sure that the probabilities of transitions from each (st,a) pair, add up to 1.
     # To set equal probabilities for all transitions, set every p=0 before calling this method.
@@ -195,9 +215,25 @@ class MDP:
         return MDP.deserialize(msg)
         
     
-                
-                
-                
-                    
-                    
-                    
+    def getMarkovChain(self, policy):
+        trans_probs = []
+        
+        for st in range(self.nStates):
+            if(st not in policy.keys()):
+                raise ValueError(f"The argument policy={policy} is missing an entry for state '{st}'")
+            a = policy[st]
+            
+            if(a not in self.state_action_pairs[st]):
+                raise ValueError(f"The given policy maps state '{st}' to an invalid action '{a}'")
+            
+            tprob = [0.] * self.nStates
+            for p,s,r in self.transitions[st,a]:
+                tprob[s] += p
+            trans_probs.append(tprob)
+            
+        return MarkovChain(states=self.states, trans_probs=trans_probs)
+        
+        
+        
+        
+    
