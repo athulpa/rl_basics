@@ -8,6 +8,8 @@ class MDP_Iterator:
         
         self.mdp = mdp
         
+        self.gamma = gamma
+        
         self.tot_reward = 0.   # the 'return' of this run of the MDP
         
         self.iterCnt = 0       # no. of steps taken till now
@@ -36,7 +38,8 @@ class MDP_Iterator:
         s,r = self.mdp.next_state_and_reward(self.state, action, self.rng.random())
         
         self.state = s
-        self.tot_reward += r
+        self.tot_reward += r * (self.gamma**self.iterCnt)
+        self.iterCnt += 1
         return s,r
     
     def __iter__(self):
@@ -49,9 +52,6 @@ class MDP_Iterator:
 
 # selects an action at random, using the self.rng
 class Random_MDP_Iterator(MDP_Iterator):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        
     def _select_action(self):
         self.rng.choice(self.mdp.possibleActions(self.state))
 
